@@ -1,0 +1,71 @@
+package com.example.biblechatbot
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.material.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.GET
+import retrofit2.http.Query
+
+// API Interface
+interface BibleApiService {
+    @GET("v1/bible/verse")
+    suspend fun getVerse(@Query("query") query: String): BibleResponse
+}
+
+data class BibleResponse(val verse: String, val text: String)
+
+// Retrofit instance
+val retrofit = Retrofit.Builder()
+    .baseUrl("https://api.bible.com/") // Replace with actual API
+    .addConverterFactory(GsonConverterFactory.create())
+    .build()
+
+val apiService = retrofit.create(BibleApiService::class.java)
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent { ChatScreen() }
+    }
+}
+
+@Composable
+fun ChatScreen() {
+    var userInput by remember { mutableStateOf("") }
+    var botResponse by remember { mutableStateOf("Welcome! Ask for a Bible verse.") }
+    val coroutineScope = rememberCoroutineScope()
+
+    Column(modifier = Modifier.padding(16.dp)) {
+        Text(text = botResponse, modifier = Modifier.padding(bottom = 16.dp))
+        BasicTextField(
+            value = userInput,
+            onValueChange = { userInput = it },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardActions = KeyboardActions(onDone = {
+                coroutineScope.launch {
+                    botResponse = fetchBibleQuote(userInput)
+                }
+            })
+        )
+    }
+}
+
+suspend fun fetchBibleQuote(query: String): String {
+    return try {
+        val response = apiService.getVerse(query)
+        "${response.verse}: ${response.text}"
+    } catch (e: Exception) {
+        "Error fetching verse. Try again."
+    }
+}
